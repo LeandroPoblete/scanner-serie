@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>Escanear número de serie</title>
+
+  <script
+    src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">
+  </script>
+
+  <style>
+
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+    }
+
+    .contenedor {
+      max-width: 520px;
+      margin: auto;
+      background: white;
+      padding: 24px;
+      border-radius: 16px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.10);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 24px;
+    }
+
+    .instruccion {
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+
+    #reader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    button {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 18px;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 17px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #botonIniciar {
+      background: #111111;
+      color: white;
+    }
+
+    #botonCancelar {
+      background: #eeeeee;
+      color: #111111;
+    }
+
+    #estado {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      display: none;
+      font-weight: bold;
+    }
+
+    .ok {
+      background: #e9f7ef;
+    }
+
+    .error {
+      background: #fdecea;
+    }
+
+    .dato {
+      background: #f4f6f8;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+
+  </style>
+
+</head>
+
+
+<body>
+
+<div class="contenedor">
+
+  <h1>
+    Escanear número de serie
+  </h1>
+
+  <p class="instruccion">
+    Apunta la cámara al código de barras ubicado en la etiqueta
+    del dispensador.
+  </p>
+
+  <div class="dato">
+    El sistema completará automáticamente el número de serie
+    cuando detecte el código.
+  </div>
+
+  <div id="reader"></div>
+
+  <button
+    id="botonIniciar"
+    type="button"
+    onclick="iniciarScanner()"
+  >
+    📷 Abrir cámara
+  </button>
+
+  <button
+    id="botonCancelar"
+    type="button"
+    onclick="volverSinSerie()"
+  >
+    Cancelar
+  </button>
+
+  <div id="estado"></div>
+
+</div>
+
+
+<script>
+
+  // ==========================================
+  // CONFIGURACIÓN
+  // ==========================================
+
+  const URL_APP =
+    'https://script.google.com/macros/s/AKfycbwe56twC3hQQ2du1BgEXpqBIzo1_qXJb5rvkh6kScr3RNQ0zkm86ATszEwzRIqG_a_HOw/exec';
+
+
+  const parametros =
+    new URLSearchParams(
+      window.location.search
+    );
+
+
+  const ID_ACTIVO =
+    String(
+      parametros.get('id') || ''
+    )
+      .trim()
+      .toUpperCase();
+
+
+  let scanner =
+    null;
+
+  let lecturaRealizada =
+    false;
+
+
+  // ==========================================
+  // MOSTRAR MENSAJE
+  // ==========================================
+
+  function mostrarEstado(
+    texto,
+    tipo
+  ) {
+
+    const estado =
+      document.getElementById(
+        'estado'
+      );
+
+    estado.style.display =
+      'block';
+
+    estado.className =
+      tipo || '';
+
+    estado.textContent =
+      texto;
+
+  }
+
+
+  // ==========================================
+  // INICIAR CÁMARA
+  // ==========================================
+
+  async function iniciarScanner() {
+
+    if (!ID_ACTIVO) {
+
+      mostrarEstado(
+        'No se recibió el identificador del dispensador.',
+        'error'
+      );
+
+      return;
+
+    }
+
+
+    const boton =
+      document.getElementById(
+        'botonIniciar'
+      );
+
+    boton.disabled =
+      true;
+
+    boton.textContent =
+      'Abriendo cámara...';
+
+
+    try {
+
+      scanner =
+        new Html5Qrcode(
+          'reader',
+          {
+            formatsToSupport: [
+
+              Html5QrcodeSupportedFormats.CODE_128,
+              Html5QrcodeSupportedFormats.CODE_39,
+              Html5QrcodeSupportedFormats.CODE_93,
+              Html5QrcodeSupportedFormats.CODABAR,
+              Html5QrcodeSupportedFormats.ITF,
+              Html5QrcodeSupportedFormats.EAN_13,
+              Html5QrcodeSupportedFormats.EAN_8,
+              Html5QrcodeSupportedFormats.UPC_A,
+              Html5QrcodeSupportedFormats.UPC_E
+
+            ]
+          }
+        );
+
+
+      mostrarEstado(
+        'Buscando código de barras...',
+        ''
+      );
+
+
+      await scanner.start(
+
+        {
+          facingMode: {
+            ideal: 'environment'
+          }
+        },
+
+        {
+          fps: 12,
+
+          qrbox: {
+            width: 300,
+            height: 120
+          },
+
+          aspectRatio:
+            1.777778
+        },
+
+
+        // =====================================
+        // CÓDIGO DETECTADO
+        // =====================================
+
+        async function(
+          textoDetectado
+        ) {
+
+          if (lecturaRealizada) {
+            return;
+          }
+
+
+          let serie =
+            String(
+              textoDetectado || ''
+            )
+              .trim()
+              .replace(
+                /\D/g,
+                ''
+              );
+
+
+          if (
+            !serie ||
+            serie.length < 6
+          ) {
+
+            return;
+
+          }
+
+
+          lecturaRealizada =
+            true;
+
+
+          mostrarEstado(
+            '✓ Serie detectada: ' +
+            serie,
+            'ok'
+          );
+
+
+          if (
+            navigator.vibrate
+          ) {
+
+            navigator.vibrate(
+              150
+            );
+
+          }
+
+
+          try {
+
+            await scanner.stop();
+
+          } catch (error) {
+
+            console.log(
+              error
+            );
+
+          }
+
+
+          // ===================================
+          // VOLVER AL FORMULARIO
+          // ===================================
+
+          setTimeout(
+            function() {
+
+              window.location.href =
+
+                URL_APP +
+
+                '?id=' +
+                encodeURIComponent(
+                  ID_ACTIVO
+                ) +
+
+                '&serie=' +
+                encodeURIComponent(
+                  serie
+                );
+
+            },
+
+            600
+          );
+
+        },
+
+
+        // =====================================
+        // ERRORES DE LECTURA
+        // Se ignoran mientras sigue buscando
+        // =====================================
+
+        function(error) {
+
+          // No hacemos nada.
+          // El lector continúa intentando.
+
+        }
+
+      );
+
+
+      boton.style.display =
+        'none';
+
+
+    } catch (error) {
+
+      console.error(
+        error
+      );
+
+
+      boton.disabled =
+        false;
+
+      boton.textContent =
+        '📷 Abrir cámara';
+
+
+      mostrarEstado(
+        'No fue posible abrir la cámara. Revisa el permiso de cámara e intenta nuevamente.',
+        'error'
+      );
+
+    }
+
+  }
+
+
+  // ==========================================
+  // CANCELAR Y VOLVER
+  // ==========================================
+
+  async function volverSinSerie() {
+
+    if (scanner) {
+
+      try {
+
+        await scanner.stop();
+
+      } catch (error) {
+
+        console.log(
+          error
+        );
+
+      }
+
+    }
+
+
+    if (ID_ACTIVO) {
+
+      window.location.href =
+
+        URL_APP +
+
+        '?id=' +
+        encodeURIComponent(
+          ID_ACTIVO
+        );
+
+    } else {
+
+      window.history.back();
+
+    }
+
+  }
+
+</script>
+
+
+</body>
+
+</html>
