@@ -202,224 +202,294 @@
   // ==========================================
   // INICIAR CÁMARA
   // ==========================================
+async function iniciarScanner() {
 
-  async function iniciarScanner() {
+  if (!ID_ACTIVO) {
 
-    if (!ID_ACTIVO) {
+    mostrarEstado(
+      'No se recibió el identificador del dispensador.',
+      'error'
+    );
 
-      mostrarEstado(
-        'No se recibió el identificador del dispensador.',
-        'error'
-      );
-
-      return;
-
-    }
-
-
-    const boton =
-      document.getElementById(
-        'botonIniciar'
-      );
-
-    boton.disabled =
-      true;
-
-    boton.textContent =
-      'Abriendo cámara...';
-
-
-    try {
-
-      scanner =
-        new Html5Qrcode(
-          'reader',
-          {
-            formatsToSupport: [
-
-              Html5QrcodeSupportedFormats.CODE_128,
-              Html5QrcodeSupportedFormats.CODE_39,
-              Html5QrcodeSupportedFormats.CODE_93,
-              Html5QrcodeSupportedFormats.CODABAR,
-              Html5QrcodeSupportedFormats.ITF,
-              Html5QrcodeSupportedFormats.EAN_13,
-              Html5QrcodeSupportedFormats.EAN_8,
-              Html5QrcodeSupportedFormats.UPC_A,
-              Html5QrcodeSupportedFormats.UPC_E
-
-            ]
-          }
-        );
-
-
-      mostrarEstado(
-        'Buscando código de barras...',
-        ''
-      );
-
-
-      await scanner.start(
-
-        {
-          facingMode: {
-            ideal: 'environment'
-          }
-        },
-
-        {
-          fps: 12,
-
-          qrbox: {
-            width: 300,
-            height: 120
-          },
-
-          aspectRatio:
-            1.777778
-        },
-
-
-        // =====================================
-        // CÓDIGO DETECTADO
-        // =====================================
-
-        async function(
-          textoDetectado
-        ) {
-
-          if (lecturaRealizada) {
-            return;
-          }
-
-
-          let serie =
-            String(
-              textoDetectado || ''
-            )
-              .trim()
-              .replace(
-                /\D/g,
-                ''
-              );
-
-
-          if (
-            !serie ||
-            serie.length < 6
-          ) {
-
-            return;
-
-          }
-
-
-          lecturaRealizada =
-            true;
-
-
-          mostrarEstado(
-            '✓ Serie detectada: ' +
-            serie,
-            'ok'
-          );
-
-
-          if (
-            navigator.vibrate
-          ) {
-
-            navigator.vibrate(
-              150
-            );
-
-          }
-
-
-          try {
-
-            await scanner.stop();
-
-          } catch (error) {
-
-            console.log(
-              error
-            );
-
-          }
-
-
-          // ===================================
-          // VOLVER AL FORMULARIO
-          // ===================================
-
-          setTimeout(
-            function() {
-
-              window.location.href =
-
-                URL_APP +
-
-                '?id=' +
-                encodeURIComponent(
-                  ID_ACTIVO
-                ) +
-
-                '&serie=' +
-                encodeURIComponent(
-                  serie
-                );
-
-            },
-
-            600
-          );
-
-        },
-
-
-        // =====================================
-        // ERRORES DE LECTURA
-        // Se ignoran mientras sigue buscando
-        // =====================================
-
-        function(error) {
-
-          // No hacemos nada.
-          // El lector continúa intentando.
-
-        }
-
-      );
-
-
-      boton.style.display =
-        'none';
-
-
-    } catch (error) {
-
-      console.error(
-        error
-      );
-
-
-      boton.disabled =
-        false;
-
-      boton.textContent =
-        '📷 Abrir cámara';
-
-
-      mostrarEstado(
-        'No fue posible abrir la cámara. Revisa el permiso de cámara e intenta nuevamente.',
-        'error'
-      );
-
-    }
+    return;
 
   }
 
+  const boton =
+    document.getElementById(
+      'botonIniciar'
+    );
 
+  boton.disabled = true;
+
+  boton.textContent =
+    'Buscando cámara...';
+
+
+  try {
+
+    // ========================================
+    // OBTENER CÁMARAS DISPONIBLES
+    // ========================================
+
+    const camaras =
+      await Html5Qrcode.getCameras();
+
+
+    if (
+      !camaras ||
+      camaras.length === 0
+    ) {
+
+      throw new Error(
+        'No se encontraron cámaras disponibles.'
+      );
+
+    }
+
+
+    console.log(
+      'Cámaras encontradas:',
+      camaras
+    );
+
+
+    // ========================================
+    // BUSCAR CÁMARA TRASERA
+    // ========================================
+
+    let camaraSeleccionada =
+      camaras.find(
+        camara => {
+
+          const nombre =
+            String(
+              camara.label || ''
+            ).toLowerCase();
+
+          return (
+            nombre.includes('back') ||
+            nombre.includes('rear') ||
+            nombre.includes('environment') ||
+            nombre.includes('trasera') ||
+            nombre.includes('posterior')
+          );
+
+        }
+      );
+
+
+    // Si Safari no entrega nombres claros,
+    // usamos la última cámara de la lista.
+    // En iPhone normalmente corresponde
+    // a una cámara posterior.
+
+    if (!camaraSeleccionada) {
+
+      camaraSeleccionada =
+        camaras[
+          camaras.length - 1
+        ];
+
+    }
+
+
+    mostrarEstado(
+      'Abriendo cámara...',
+      ''
+    );
+
+
+    // ========================================
+    // CREAR ESCÁNER
+    // ========================================
+
+    scanner =
+      new Html5Qrcode(
+        'reader',
+        {
+          formatsToSupport: [
+
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8
+
+          ]
+        }
+      );
+
+
+    // ========================================
+    // INICIAR CON CAMERA ID REAL
+    // ========================================
+
+    await scanner.start(
+
+      camaraSeleccionada.id,
+
+      {
+
+        fps: 10,
+
+        qrbox: {
+          width: 280,
+          height: 110
+        }
+
+      },
+
+
+      // ======================================
+      // CÓDIGO DETECTADO
+      // ======================================
+
+      async function(
+        textoDetectado
+      ) {
+
+        if (lecturaRealizada) {
+          return;
+        }
+
+
+        let serie =
+          String(
+            textoDetectado || ''
+          )
+            .trim()
+            .replace(
+              /\D/g,
+              ''
+            );
+
+
+        if (
+          !serie ||
+          serie.length < 6
+        ) {
+
+          return;
+
+        }
+
+
+        lecturaRealizada = true;
+
+
+        mostrarEstado(
+          '✓ Serie detectada: ' +
+          serie,
+          'ok'
+        );
+
+
+        if (
+          navigator.vibrate
+        ) {
+
+          navigator.vibrate(
+            150
+          );
+
+        }
+
+
+        try {
+
+          await scanner.stop();
+
+        } catch (error) {
+
+          console.log(
+            error
+          );
+
+        }
+
+
+        // ====================================
+        // VOLVER A APPS SCRIPT
+        // ====================================
+
+        setTimeout(
+          function() {
+
+            window.location.href =
+
+              URL_APP +
+
+              '?id=' +
+              encodeURIComponent(
+                ID_ACTIVO
+              ) +
+
+              '&serie=' +
+              encodeURIComponent(
+                serie
+              );
+
+          },
+
+          600
+        );
+
+      },
+
+
+      // Mientras busca, ignoramos errores
+      function(error) {
+
+      }
+
+    );
+
+
+    boton.style.display =
+      'none';
+
+
+    mostrarEstado(
+      'Buscando código de barras...',
+      ''
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      error
+    );
+
+
+    boton.disabled =
+      false;
+
+    boton.textContent =
+      '📷 Abrir cámara';
+
+
+    // IMPORTANTE:
+    // ahora veremos el error verdadero del iPhone
+
+    mostrarEstado(
+
+      'Error cámara: ' +
+      (
+        error &&
+        error.message
+          ? error.message
+          : String(error)
+      ),
+
+      'error'
+
+    );
+
+  }
+
+}
   // ==========================================
   // CANCELAR Y VOLVER
   // ==========================================
