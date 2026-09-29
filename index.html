@@ -46,23 +46,10 @@
       color: #444444;
     }
 
-    .ayuda {
-      margin-top: 14px;
-      padding: 12px;
-      background: #f4f6f8;
-      border-radius: 9px;
-      font-size: 13px;
-      line-height: 1.45;
-    }
-
-    /* =========================================
-       CONTENEDOR DE CÁMARA MÁS PEQUEÑO
-       ========================================= */
-
     #reader {
       width: 100%;
       max-width: 460px;
-      height: 285px;
+      height: 275px;
       margin: 18px auto 0 auto;
       overflow: hidden;
       background: #000000;
@@ -71,8 +58,18 @@
 
     #reader video {
       width: 100% !important;
-      height: 285px !important;
+      height: 275px !important;
       object-fit: cover !important;
+    }
+
+    .ayuda {
+      margin-top: 12px;
+      padding: 11px;
+      background: #f4f6f8;
+      border-radius: 9px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #555555;
     }
 
     button {
@@ -94,8 +91,8 @@
 
     #botonReintentar {
       display: none;
-      background: #111111;
-      color: #ffffff;
+      background: #eeeeee;
+      color: #111111;
     }
 
     #botonCancelar {
@@ -119,22 +116,61 @@
       color: #263746;
     }
 
-    .ok {
-      display: block !important;
-      background: #e9f7ef;
-      color: #176b38;
-    }
-
     .error {
       display: block !important;
       background: #fdecea;
       color: #a12622;
     }
 
-    .serie-detectada {
-      margin-top: 10px;
-      font-size: 18px;
+    .ok {
+      display: block !important;
+      background: #e9f7ef;
+      color: #176b38;
+    }
+
+    /* =========================================
+       CONFIRMACIÓN
+       ========================================= */
+
+    #confirmacion {
+      display: none;
+      margin-top: 18px;
+      padding: 18px;
+      background: #e9f7ef;
+      border-radius: 12px;
+    }
+
+    .titulo-confirmacion {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    #serieDetectada {
+      padding: 12px;
+      background: #ffffff;
+      border-radius: 8px;
+      font-size: 22px;
+      font-weight: bold;
+      text-align: center;
       word-break: break-all;
+    }
+
+    #formatoDetectado {
+      margin-top: 8px;
+      text-align: center;
+      font-size: 12px;
+      color: #555555;
+    }
+
+    #botonConfirmar {
+      background: #111111;
+      color: #ffffff;
+    }
+
+    #botonVolverEscanear {
+      background: #ffffff;
+      color: #111111;
     }
 
   </style>
@@ -151,16 +187,22 @@
   </h1>
 
   <p class="subtitulo">
-    Apunta la cámara al código de barras de la etiqueta
-    del dispensador.
+    Apunta la cámara al código de barras de la etiqueta del dispensador.
   </p>
+
+
+  <!-- ======================================
+       CÁMARA
+       ====================================== -->
 
   <div id="reader"></div>
 
+
   <div class="ayuda">
-    Mantén todo el código dentro de la franja de lectura.
-    Funciona con códigos numéricos y alfanuméricos.
+    Mantén el código completo dentro del visor.
+    Deja un pequeño margen a ambos lados de las barras.
   </div>
+
 
   <button
     id="botonIniciar"
@@ -170,6 +212,7 @@
     📷 Abrir cámara
   </button>
 
+
   <button
     id="botonReintentar"
     type="button"
@@ -178,6 +221,42 @@
     🔄 Intentar nuevamente
   </button>
 
+
+  <!-- ======================================
+       RESULTADO / CONFIRMACIÓN
+       ====================================== -->
+
+  <div id="confirmacion">
+
+    <div class="titulo-confirmacion">
+      Código detectado
+    </div>
+
+    <div id="serieDetectada">
+    </div>
+
+    <div id="formatoDetectado">
+    </div>
+
+    <button
+      id="botonConfirmar"
+      type="button"
+      onclick="confirmarSerie()"
+    >
+      ✓ Confirmar código
+    </button>
+
+    <button
+      id="botonVolverEscanear"
+      type="button"
+      onclick="volverAEscanear()"
+    >
+      🔄 Escanear nuevamente
+    </button>
+
+  </div>
+
+
   <button
     id="botonCancelar"
     type="button"
@@ -185,6 +264,7 @@
   >
     Cancelar
   </button>
+
 
   <div id="estado"></div>
 
@@ -224,6 +304,12 @@
   let lecturaRealizada =
     false;
 
+  let seriePendiente =
+    '';
+
+  let formatoPendiente =
+    '';
+
 
   // =====================================================
   // MENSAJES
@@ -239,14 +325,14 @@
         'estado'
       );
 
-    estado.style.display =
-      'block';
+    estado.textContent =
+      texto;
 
     estado.className =
       tipo || 'info';
 
-    estado.innerHTML =
-      texto;
+    estado.style.display =
+      'block';
 
   }
 
@@ -265,20 +351,13 @@
 
         formatsToSupport: [
 
-          // ALFANUMÉRICOS
+          // Principales formatos alfanuméricos
           Html5QrcodeSupportedFormats.CODE_128,
           Html5QrcodeSupportedFormats.CODE_39,
           Html5QrcodeSupportedFormats.CODE_93,
 
-          // OTROS 1D
-          Html5QrcodeSupportedFormats.CODABAR,
-          Html5QrcodeSupportedFormats.ITF,
-
-          // NUMÉRICOS
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.EAN_8,
-          Html5QrcodeSupportedFormats.UPC_A,
-          Html5QrcodeSupportedFormats.UPC_E
+          // Mantener compatibilidad adicional 1D
+          Html5QrcodeSupportedFormats.CODABAR
 
         ],
 
@@ -293,8 +372,8 @@
 
 
   // =====================================================
-  // CONFIGURACIÓN DE ZONA DE LECTURA
-  // Franja ancha y baja
+  // ZONA DE LECTURA
+  // Franja horizontal
   // =====================================================
 
   const configuracionLectura = {
@@ -309,14 +388,14 @@
 
         const ancho =
           Math.floor(
-            viewfinderWidth * 0.88
+            viewfinderWidth * 0.90
           );
 
         const alto =
           Math.min(
-            105,
+            115,
             Math.floor(
-              viewfinderHeight * 0.38
+              viewfinderHeight * 0.42
             )
           );
 
@@ -330,16 +409,13 @@
 
         };
 
-      },
-
-    aspectRatio:
-      1.777778
+      }
 
   };
 
 
   // =====================================================
-  // PROCESAR LECTURA
+  // CÓDIGO DETECTADO
   // =====================================================
 
   async function codigoDetectado(
@@ -352,9 +428,6 @@
     }
 
 
-    // IMPORTANTE:
-    // NO eliminamos letras.
-
     let serie =
       String(
         textoDetectado || ''
@@ -363,12 +436,12 @@
         .toUpperCase();
 
 
-    // Quitamos solo espacios.
-    // Conservamos:
-    // letras
-    // números
-    // guiones
-    // otros caracteres válidos del código
+    // ==========================================
+    // IMPORTANTE
+    // Conservamos letras, números, guiones,
+    // paréntesis y demás símbolos del código.
+    // Solo eliminamos espacios.
+    // ==========================================
 
     serie =
       serie.replace(
@@ -391,41 +464,41 @@
       true;
 
 
-    console.log(
-      'Serie detectada:',
-      serie
-    );
+    seriePendiente =
+      serie;
 
 
-    mostrarEstado(
+    // ==========================================
+    // FORMATO DETECTADO
+    // ==========================================
 
-      '✓ Código detectado' +
+    try {
 
-      '<div class="serie-detectada">' +
+      formatoPendiente =
+        String(
+          resultadoCompleto
+            ?.result
+            ?.format
+            ?.formatName || ''
+        );
 
-      serie +
+    } catch (error) {
 
-      '</div>',
-
-      'ok'
-
-    );
-
-
-    if (
-      navigator.vibrate
-    ) {
-
-      navigator.vibrate(
-        150
-      );
+      formatoPendiente =
+        '';
 
     }
 
 
-    // ===============================================
+    console.log(
+      'Código detectado:',
+      seriePendiente
+    );
+
+
+    // ==========================================
     // DETENER CÁMARA
-    // ===============================================
+    // ==========================================
 
     try {
 
@@ -451,38 +524,88 @@
       false;
 
 
-    // ===============================================
-    // VOLVER A APPS SCRIPT
-    // ===============================================
+    if (
+      navigator.vibrate
+    ) {
 
-    setTimeout(
+      navigator.vibrate(
+        150
+      );
 
-      function() {
-
-        const destino =
-
-          URL_APP +
-
-          '?id=' +
-
-          encodeURIComponent(
-            ID_ACTIVO
-          ) +
-
-          '&serie=' +
-
-          encodeURIComponent(
-            serie
-          );
+    }
 
 
-        window.location.href =
-          destino;
+    // ==========================================
+    // MOSTRAR CONFIRMACIÓN
+    // ==========================================
 
-      },
+    document
+      .getElementById(
+        'serieDetectada'
+      )
+      .textContent =
+        seriePendiente;
 
-      900
 
+    const textoFormato =
+      document.getElementById(
+        'formatoDetectado'
+      );
+
+
+    if (formatoPendiente) {
+
+      textoFormato.textContent =
+        'Formato detectado: ' +
+        formatoPendiente;
+
+    } else {
+
+      textoFormato.textContent =
+        '';
+
+    }
+
+
+    document
+      .getElementById(
+        'confirmacion'
+      )
+      .style
+      .display =
+        'block';
+
+
+    document
+      .getElementById(
+        'reader'
+      )
+      .style
+      .display =
+        'none';
+
+
+    document
+      .getElementById(
+        'botonIniciar'
+      )
+      .style
+      .display =
+        'none';
+
+
+    document
+      .getElementById(
+        'botonReintentar'
+      )
+      .style
+      .display =
+        'none';
+
+
+    mostrarEstado(
+      'Revisa que el código coincida con la etiqueta antes de confirmar.',
+      'ok'
     );
 
   }
@@ -512,15 +635,37 @@
     }
 
 
+    lecturaRealizada =
+      false;
+
+    seriePendiente =
+      '';
+
+    formatoPendiente =
+      '';
+
+
+    document
+      .getElementById(
+        'confirmacion'
+      )
+      .style
+      .display =
+        'none';
+
+
+    document
+      .getElementById(
+        'reader'
+      )
+      .style
+      .display =
+        'block';
+
+
     const boton =
       document.getElementById(
         'botonIniciar'
-      );
-
-
-    const botonReintentar =
-      document.getElementById(
-        'botonReintentar'
       );
 
 
@@ -530,15 +675,9 @@
     boton.textContent =
       'Abriendo cámara...';
 
-    botonReintentar.style.display =
-      'none';
-
-
-    lecturaRealizada =
-      false;
-
 
     try {
+
 
       scanner =
         crearScanner();
@@ -550,12 +689,13 @@
       );
 
 
-      // ===============================================
-      // PRIMER INTENTO
-      // Cámara trasera directamente
-      // ===============================================
+      // ==========================================
+      // PRIMER INTENTO:
+      // cámara trasera
+      // ==========================================
 
       try {
+
 
         await scanner.start(
 
@@ -572,7 +712,7 @@
             errorLectura
           ) {
 
-            // Normal mientras busca un código
+            // Sigue intentando leer
 
           }
 
@@ -589,17 +729,18 @@
 
 
         console.log(
-          'Primer intento falló:',
+          'Primer intento:',
           primerError
         );
 
 
-        // =============================================
-        // SEGUNDO INTENTO
-        // Obtener cámaras y usar ID real
-        // =============================================
+        // ======================================
+        // SEGUNDO INTENTO:
+        // seleccionar cámara por ID
+        // ======================================
 
         try {
+
 
           if (scanner) {
 
@@ -634,14 +775,10 @@
 
 
           let camaraElegida =
-            null;
-
-
-          // Buscar cámara trasera por nombre
-
-          camaraElegida =
             camaras.find(
-              function(camara) {
+              function(
+                camara
+              ) {
 
                 const nombre =
                   String(
@@ -678,9 +815,6 @@
             );
 
 
-          // Si Safari no da nombres útiles,
-          // usar última cámara disponible
-
           if (!camaraElegida) {
 
             camaraElegida =
@@ -713,14 +847,10 @@
           scannerActivo =
             true;
 
+
         } catch (
           segundoError
         ) {
-
-
-          console.error(
-            segundoError
-          );
 
 
           throw segundoError;
@@ -744,7 +874,6 @@
 
 
       console.error(
-        'Error cámara:',
         error
       );
 
@@ -763,8 +892,13 @@
         '📷 Abrir cámara';
 
 
-      botonReintentar.style.display =
-        'block';
+      document
+        .getElementById(
+          'botonReintentar'
+        )
+        .style
+        .display =
+          'block';
 
 
       const detalle =
@@ -780,17 +914,9 @@
 
 
       mostrarEstado(
-
-        'No fue posible abrir la cámara.<br><br>' +
-
-        '<small>' +
-
-        detalle +
-
-        '</small>',
-
+        'No fue posible abrir la cámara: ' +
+        detalle,
         'error'
-
       );
 
     }
@@ -799,17 +925,108 @@
 
 
   // =====================================================
-  // REINTENTAR
+  // CONFIRMAR SERIE
   // =====================================================
 
-  async function reiniciarScanner() {
+  function confirmarSerie() {
+
+
+    if (!seriePendiente) {
+
+      mostrarEstado(
+        'No existe un código para confirmar.',
+        'error'
+      );
+
+      return;
+
+    }
+
+
+    const destino =
+
+      URL_APP +
+
+      '?id=' +
+
+      encodeURIComponent(
+        ID_ACTIVO
+      ) +
+
+      '&serie=' +
+
+      encodeURIComponent(
+        seriePendiente
+      );
+
+
+    window.location.href =
+      destino;
+
+  }
+
+
+  // =====================================================
+  // VOLVER A ESCANEAR
+  // =====================================================
+
+  async function volverAEscanear() {
 
 
     lecturaRealizada =
       false;
 
+    seriePendiente =
+      '';
+
+    formatoPendiente =
+      '';
+
+
+    document
+      .getElementById(
+        'confirmacion'
+      )
+      .style
+      .display =
+        'none';
+
+
+    document
+      .getElementById(
+        'reader'
+      )
+      .style
+      .display =
+        'block';
+
+
+    document
+      .getElementById(
+        'estado'
+      )
+      .style
+      .display =
+        'none';
+
+
+    await limpiarScanner();
+
+
+    iniciarScanner();
+
+  }
+
+
+  // =====================================================
+  // LIMPIAR SCANNER
+  // =====================================================
+
+  async function limpiarScanner() {
+
 
     if (scanner) {
+
 
       try {
 
@@ -828,6 +1045,7 @@
 
       } catch (error) {}
 
+
     }
 
 
@@ -844,6 +1062,22 @@
       )
       .innerHTML =
         '';
+
+  }
+
+
+  // =====================================================
+  // REINTENTAR
+  // =====================================================
+
+  async function reiniciarScanner() {
+
+
+    await limpiarScanner();
+
+
+    lecturaRealizada =
+      false;
 
 
     document
@@ -876,19 +1110,7 @@
   async function volverSinSerie() {
 
 
-    if (scanner) {
-
-      try {
-
-        if (scannerActivo) {
-
-          await scanner.stop();
-
-        }
-
-      } catch (error) {}
-
-    }
+    await limpiarScanner();
 
 
     if (ID_ACTIVO) {
