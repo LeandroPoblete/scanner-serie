@@ -331,11 +331,34 @@ async function iniciarScanner() {
 
       {
 
-        fps: 10,
+{
+  fps: 15,
 
-        qrbox: {
-          width: 280,
-          height: 110
+  qrbox: function(
+    viewfinderWidth,
+    viewfinderHeight
+  ) {
+
+    const width =
+      Math.floor(
+        viewfinderWidth * 0.92
+      );
+
+    const height =
+      Math.min(
+        150,
+        Math.floor(
+          viewfinderHeight * 0.35
+        )
+      );
+
+    return {
+      width: width,
+      height: height
+    };
+
+  }
+}
         }
 
       },
