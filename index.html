@@ -7,11 +7,12 @@
 
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
   >
 
   <title>Escanear número de serie</title>
 
+  <!-- LIBRERÍA -->
   <script
     src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js">
   </script>
@@ -20,7 +21,7 @@
 
     body {
       margin: 0;
-      padding: 20px;
+      padding: 18px;
       font-family: Arial, sans-serif;
       background: #f4f6f8;
     }
@@ -28,8 +29,8 @@
     .contenedor {
       max-width: 520px;
       margin: auto;
-      background: white;
-      padding: 24px;
+      background: #ffffff;
+      padding: 22px;
       border-radius: 16px;
       box-shadow: 0 4px 18px rgba(0,0,0,0.10);
     }
@@ -44,16 +45,33 @@
       margin-bottom: 18px;
     }
 
+    .dato {
+      background: #f4f6f8;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 18px;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
     #reader {
       width: 100%;
+      min-height: 260px;
       overflow: hidden;
+      background: #000000;
       border-radius: 12px;
+    }
+
+    #reader video {
+      width: 100% !important;
+      height: auto !important;
+      object-fit: contain !important;
     }
 
     button {
       width: 100%;
       box-sizing: border-box;
-      margin-top: 18px;
+      margin-top: 14px;
       padding: 14px;
       border: none;
       border-radius: 10px;
@@ -64,12 +82,18 @@
 
     #botonIniciar {
       background: #111111;
-      color: white;
+      color: #ffffff;
     }
 
     #botonCancelar {
       background: #eeeeee;
       color: #111111;
+    }
+
+    #botonReintentar {
+      display: none;
+      background: #111111;
+      color: #ffffff;
     }
 
     #estado {
@@ -78,22 +102,32 @@
       border-radius: 8px;
       display: none;
       font-weight: bold;
+      line-height: 1.4;
     }
 
     .ok {
+      display: block !important;
       background: #e9f7ef;
+      color: #176b38;
     }
 
     .error {
+      display: block !important;
       background: #fdecea;
+      color: #a12622;
     }
 
-    .dato {
-      background: #f4f6f8;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      font-size: 14px;
+    .info {
+      display: block !important;
+      background: #eef3f8;
+      color: #263746;
+    }
+
+    .ayuda {
+      margin-top: 14px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #555555;
     }
 
   </style>
@@ -110,13 +144,12 @@
   </h1>
 
   <p class="instruccion">
-    Apunta la cámara al código de barras ubicado en la etiqueta
-    del dispensador.
+    Apunta la cámara al código de barras del dispensador.
   </p>
 
   <div class="dato">
-    El sistema completará automáticamente el número de serie
-    cuando detecte el código.
+    Mantén visible el código completo y deja un pequeño margen
+    a ambos lados de las barras.
   </div>
 
   <div id="reader"></div>
@@ -130,6 +163,14 @@
   </button>
 
   <button
+    id="botonReintentar"
+    type="button"
+    onclick="reiniciarScanner()"
+  >
+    🔄 Intentar nuevamente
+  </button>
+
+  <button
     id="botonCancelar"
     type="button"
     onclick="volverSinSerie()"
@@ -139,14 +180,19 @@
 
   <div id="estado"></div>
 
+  <div class="ayuda">
+    Si cuesta leer el código, aléjate un poco del dispensador
+    hasta que todas las barras se vean nítidas en pantalla.
+  </div>
+
 </div>
 
 
 <script>
 
-  // ==========================================
+  // =====================================================
   // CONFIGURACIÓN
-  // ==========================================
+  // =====================================================
 
   const URL_APP =
     'https://script.google.com/macros/s/AKfycbwe56twC3hQQ2du1BgEXpqBIzo1_qXJb5rvkh6kScr3RNQ0zkm86ATszEwzRIqG_a_HOw/exec';
@@ -172,10 +218,13 @@
   let lecturaRealizada =
     false;
 
+  let scannerIniciado =
+    false;
 
-  // ==========================================
-  // MOSTRAR MENSAJE
-  // ==========================================
+
+  // =====================================================
+  // MENSAJES
+  // =====================================================
 
   function mostrarEstado(
     texto,
@@ -187,50 +236,23 @@
         'estado'
       );
 
-    estado.style.display =
-      'block';
-
-    estado.className =
-      tipo || '';
-
     estado.textContent =
       texto;
 
-  }
+    estado.className =
+      tipo || 'info';
 
-
-  // ==========================================
-  // INICIAR CÁMARA
-  // ==========================================
-async function iniciarScanner() {
-
-  if (!ID_ACTIVO) {
-
-    mostrarEstado(
-      'No se recibió el identificador del dispensador.',
-      'error'
-    );
-
-    return;
+    estado.style.display =
+      'block';
 
   }
 
-  const boton =
-    document.getElementById(
-      'botonIniciar'
-    );
 
-  boton.disabled = true;
+  // =====================================================
+  // OBTENER CÁMARA
+  // =====================================================
 
-  boton.textContent =
-    'Buscando cámara...';
-
-
-  try {
-
-    // ========================================
-    // OBTENER CÁMARAS DISPONIBLES
-    // ========================================
+  async function obtenerCamaraPreferida() {
 
     const camaras =
       await Html5Qrcode.getCameras();
@@ -254,18 +276,16 @@ async function iniciarScanner() {
     );
 
 
-    // ========================================
-    // BUSCAR CÁMARA TRASERA
-    // ========================================
-
-    let camaraSeleccionada =
+    // Buscar alguna cámara trasera
+    let camaraTrasera =
       camaras.find(
         camara => {
 
           const nombre =
             String(
               camara.label || ''
-            ).toLowerCase();
+            )
+              .toLowerCase();
 
           return (
             nombre.includes('back') ||
@@ -279,14 +299,11 @@ async function iniciarScanner() {
       );
 
 
-    // Si Safari no entrega nombres claros,
-    // usamos la última cámara de la lista.
-    // En iPhone normalmente corresponde
-    // a una cámara posterior.
+    // En iPhone muchas veces la cámara trasera
+    // aparece al final de la lista
+    if (!camaraTrasera) {
 
-    if (!camaraSeleccionada) {
-
-      camaraSeleccionada =
+      camaraTrasera =
         camaras[
           camaras.length - 1
         ];
@@ -294,230 +311,415 @@ async function iniciarScanner() {
     }
 
 
-    mostrarEstado(
-      'Abriendo cámara...',
-      ''
-    );
-
-
-    // ========================================
-    // CREAR ESCÁNER
-    // ========================================
-
-    scanner =
-      new Html5Qrcode(
-        'reader',
-        {
-          formatsToSupport: [
-
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.ITF,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8
-
-          ]
-        }
-      );
-
-
-    // ========================================
-    // INICIAR CON CAMERA ID REAL
-    // ========================================
-
-    await scanner.start(
-
-      camaraSeleccionada.id,
-
-      {
-
-{
-  fps: 15,
-
-  qrbox: function(
-    viewfinderWidth,
-    viewfinderHeight
-  ) {
-
-    const width =
-      Math.floor(
-        viewfinderWidth * 0.92
-      );
-
-    const height =
-      Math.min(
-        150,
-        Math.floor(
-          viewfinderHeight * 0.35
-        )
-      );
-
-    return {
-      width: width,
-      height: height
-    };
+    return camaraTrasera;
 
   }
-}
-        }
-
-      },
 
 
-      // ======================================
-      // CÓDIGO DETECTADO
-      // ======================================
+  // =====================================================
+  // INICIAR ESCÁNER
+  // =====================================================
 
-      async function(
-        textoDetectado
-      ) {
+  async function iniciarScanner() {
 
-        if (lecturaRealizada) {
-          return;
-        }
+    if (scannerIniciado) {
+      return;
+    }
 
 
-        let serie =
-          String(
-            textoDetectado || ''
-          )
-            .trim()
-            .replace(
+    if (!ID_ACTIVO) {
+
+      mostrarEstado(
+        'No se recibió el identificador del dispensador.',
+        'error'
+      );
+
+      return;
+
+    }
+
+
+    const boton =
+      document.getElementById(
+        'botonIniciar'
+      );
+
+    const botonReintentar =
+      document.getElementById(
+        'botonReintentar'
+      );
+
+
+    boton.disabled =
+      true;
+
+    boton.textContent =
+      'Abriendo cámara...';
+
+    botonReintentar.style.display =
+      'none';
+
+
+    try {
+
+      mostrarEstado(
+        'Solicitando acceso a la cámara...',
+        'info'
+      );
+
+
+      // =================================================
+      // CÁMARA DISPONIBLE
+      // =================================================
+
+      const camara =
+        await obtenerCamaraPreferida();
+
+
+      console.log(
+        'Cámara seleccionada:',
+        camara
+      );
+
+
+      // =================================================
+      // CREAR LECTOR
+      // =================================================
+
+      scanner =
+        new Html5Qrcode(
+
+          'reader',
+
+          {
+
+            formatsToSupport: [
+
+              Html5QrcodeSupportedFormats.CODE_128,
+
+              Html5QrcodeSupportedFormats.CODE_39,
+
+              Html5QrcodeSupportedFormats.CODE_93,
+
+              Html5QrcodeSupportedFormats.CODABAR,
+
+              Html5QrcodeSupportedFormats.ITF,
+
+              Html5QrcodeSupportedFormats.EAN_13,
+
+              Html5QrcodeSupportedFormats.EAN_8,
+
+              Html5QrcodeSupportedFormats.UPC_A,
+
+              Html5QrcodeSupportedFormats.UPC_E
+
+            ],
+
+            useBarCodeDetectorIfSupported:
+              true
+
+          }
+
+        );
+
+
+      scannerIniciado =
+        true;
+
+
+      mostrarEstado(
+        'Buscando código de barras...',
+        'info'
+      );
+
+
+      // =================================================
+      // INICIAR CÁMARA
+      // IMPORTANTE:
+      // SIN QRBOX PARA LEER TODA LA IMAGEN
+      // =================================================
+
+      await scanner.start(
+
+        camara.id,
+
+        {
+
+          fps: 12,
+
+          aspectRatio:
+            1.777778
+
+        },
+
+
+        // ===============================================
+        // LECTURA EXITOSA
+        // ===============================================
+
+        async function(
+          textoDetectado
+        ) {
+
+          if (lecturaRealizada) {
+            return;
+          }
+
+
+          let serie =
+            String(
+              textoDetectado || ''
+            )
+              .trim();
+
+
+          console.log(
+            'Código original:',
+            serie
+          );
+
+
+          // Nos quedamos solo con números
+          serie =
+            serie.replace(
               /\D/g,
               ''
             );
 
 
-        if (
-          !serie ||
-          serie.length < 6
-        ) {
+          // Protección contra lecturas basura
+          if (
+            !serie ||
+            serie.length < 6
+          ) {
 
-          return;
+            return;
 
-        }
-
-
-        lecturaRealizada = true;
+          }
 
 
-        mostrarEstado(
-          '✓ Serie detectada: ' +
-          serie,
-          'ok'
-        );
+          lecturaRealizada =
+            true;
 
 
-        if (
-          navigator.vibrate
-        ) {
-
-          navigator.vibrate(
-            150
+          mostrarEstado(
+            '✓ Serie detectada: ' +
+            serie,
+            'ok'
           );
 
-        }
+
+          if (
+            navigator.vibrate
+          ) {
+
+            navigator.vibrate(
+              150
+            );
+
+          }
 
 
-        try {
+          // =============================================
+          // APAGAR CÁMARA
+          // =============================================
 
-          await scanner.stop();
+          try {
 
-        } catch (error) {
+            if (scanner) {
 
-          console.log(
-            error
+              await scanner.stop();
+
+            }
+
+          } catch (error) {
+
+            console.log(
+              'Error al detener cámara:',
+              error
+            );
+
+          }
+
+
+          scannerIniciado =
+            false;
+
+
+          // =============================================
+          // VOLVER A APPS SCRIPT CON LA SERIE
+          // =============================================
+
+          setTimeout(
+
+            function() {
+
+
+              const destino =
+
+                URL_APP +
+
+                '?id=' +
+
+                encodeURIComponent(
+                  ID_ACTIVO
+                ) +
+
+                '&serie=' +
+
+                encodeURIComponent(
+                  serie
+                );
+
+
+              window.location.href =
+                destino;
+
+
+            },
+
+            700
+
           );
 
+        },
+
+
+        // ===============================================
+        // ERROR DE DECODIFICACIÓN
+        // Se ignora porque el lector sigue buscando
+        // ===============================================
+
+        function(
+          errorLectura
+        ) {
+
+          // Intencionalmente vacío
+
         }
 
-
-        // ====================================
-        // VOLVER A APPS SCRIPT
-        // ====================================
-
-        setTimeout(
-          function() {
-
-            window.location.href =
-
-              URL_APP +
-
-              '?id=' +
-              encodeURIComponent(
-                ID_ACTIVO
-              ) +
-
-              '&serie=' +
-              encodeURIComponent(
-                serie
-              );
-
-          },
-
-          600
-        );
-
-      },
+      );
 
 
-      // Mientras busca, ignoramos errores
-      function(error) {
-
-      }
-
-    );
+      boton.style.display =
+        'none';
 
 
-    boton.style.display =
-      'none';
+    } catch (error) {
 
 
-    mostrarEstado(
-      'Buscando código de barras...',
-      ''
-    );
+      console.error(
+        'ERROR CÁMARA:',
+        error
+      );
 
 
-  } catch (error) {
-
-    console.error(
-      error
-    );
+      scannerIniciado =
+        false;
 
 
-    boton.disabled =
-      false;
+      boton.disabled =
+        false;
 
-    boton.textContent =
-      '📷 Abrir cámara';
+      boton.style.display =
+        'block';
+
+      boton.textContent =
+        '📷 Abrir cámara';
 
 
-    // IMPORTANTE:
-    // ahora veremos el error verdadero del iPhone
+      botonReintentar.style.display =
+        'block';
 
-    mostrarEstado(
 
-      'Error cámara: ' +
-      (
+      const detalle =
         error &&
         error.message
           ? error.message
-          : String(error)
-      ),
+          : String(error);
 
-      'error'
 
-    );
+      mostrarEstado(
+        'Error de cámara: ' +
+        detalle,
+        'error'
+      );
+
+    }
 
   }
 
-}
-  // ==========================================
-  // CANCELAR Y VOLVER
-  // ==========================================
+
+  // =====================================================
+  // REINTENTAR
+  // =====================================================
+
+  async function reiniciarScanner() {
+
+    lecturaRealizada =
+      false;
+
+
+    if (scanner) {
+
+      try {
+
+        await scanner.stop();
+
+      } catch (error) {
+
+        console.log(
+          error
+        );
+
+      }
+
+
+      try {
+
+        await scanner.clear();
+
+      } catch (error) {
+
+        console.log(
+          error
+        );
+
+      }
+
+    }
+
+
+    scanner =
+      null;
+
+    scannerIniciado =
+      false;
+
+
+    document.getElementById(
+      'reader'
+    ).innerHTML =
+      '';
+
+
+    document.getElementById(
+      'botonReintentar'
+    ).style.display =
+      'none';
+
+
+    iniciarScanner();
+
+  }
+
+
+  // =====================================================
+  // CANCELAR
+  // =====================================================
 
   async function volverSinSerie() {
+
 
     if (scanner) {
 
@@ -538,22 +740,57 @@ async function iniciarScanner() {
 
     if (ID_ACTIVO) {
 
+
       window.location.href =
 
         URL_APP +
 
         '?id=' +
+
         encodeURIComponent(
           ID_ACTIVO
         );
 
+
     } else {
 
+
       window.history.back();
+
 
     }
 
   }
+
+
+  // =====================================================
+  // APAGAR CÁMARA AL SALIR
+  // =====================================================
+
+  window.addEventListener(
+
+    'pagehide',
+
+    function() {
+
+
+      if (
+        scanner &&
+        scannerIniciado
+      ) {
+
+
+        scanner.stop()
+          .catch(
+            function() {}
+          );
+
+
+      }
+
+    }
+
+  );
 
 </script>
 
