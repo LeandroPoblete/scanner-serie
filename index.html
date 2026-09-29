@@ -474,29 +474,41 @@
 
 
           console.log(
-            'Código original:',
-            serie
-          );
+            let serie =
+  String(
+    textoDetectado || ''
+  )
+    .trim()
+    .toUpperCase();
+
+console.log(
+  'Código original:',
+  serie
+);
 
 
-          // Nos quedamos solo con números
-          serie =
-            serie.replace(
-              /\D/g,
-              ''
-            );
+// ==========================================
+// LIMPIEZA DE SERIE
+// Conserva letras, números y símbolos
+// Solo elimina espacios innecesarios
+// ==========================================
+
+serie =
+  serie.replace(
+    /\s+/g,
+    ''
+  );
 
 
-          // Protección contra lecturas basura
-          if (
-            !serie ||
-            serie.length < 6
-          ) {
+// Protección contra lecturas basura
+if (
+  !serie ||
+  serie.length < 4
+) {
 
-            return;
+  return;
 
-          }
-
+}
 
           lecturaRealizada =
             true;
